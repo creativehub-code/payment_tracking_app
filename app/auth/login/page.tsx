@@ -50,8 +50,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Payment Tracker</h1>
-          <p className="text-muted">Manage and track payment proofs</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">WELCOME BACK TO  MAHRINU ORU KARUTHAL</h1>
+          <p className="text-muted">powred by AL MANSAH</p>
         </div>
 
         <form
