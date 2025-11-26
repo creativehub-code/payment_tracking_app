@@ -32,32 +32,138 @@ export default function PaymentSubmissionForm({ onSubmit }: PaymentSubmissionFor
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      const MAX_IMAGE_SIZE_BYTES = 3 * 1024 * 1024 // 3 MB target after resize
+      const MAX_DIMENSION = 1280
+
+      const isImage = file.type.startsWith("image/")
+      const isPdf = file.type === "application/pdf"
+
       setFileName(file.name)
-      const reader = new FileReader()
-      reader.onload = async (event) => {
-        const result = event.target?.result as string
-        setFileData(result)
 
-        setIsProcessingOCR(true)
-        try {
-          const ocr = await processPaymentProof(result)
-          setOcrResult(ocr)
+      const readAsDataUrl = (f: File) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = (ev) => resolve(ev.target?.result as string)
+          reader.onerror = (err) => reject(err)
+          reader.readAsDataURL(f)
+        })
 
-          if (ocr.amount && !formData.amount) {
-            setFormData((prev) => ({
-              ...prev,
-              amount: ocr.amount!.toString(),
-            }))
+      // Resize an image data URL to a max dimension and quality
+      const resizeImageDataUrl = (
+        dataUrl: string,
+        maxDim = MAX_DIMENSION,
+        quality = 0.8
+      ): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          const img = new Image()
+          img.onload = () => {
+            let { width, height } = img
+            if (width <= maxDim && height <= maxDim) {
+              // no resize needed
+              resolve(dataUrl)
+              return
+            }
+
+            const aspect = width / height
+            if (width > height) {
+              width = maxDim
+              height = Math.round(maxDim / aspect)
+            } else {
+              height = maxDim
+              width = Math.round(maxDim * aspect)
+            }
+
+            const canvas = document.createElement("canvas")
+            canvas.width = width
+            canvas.height = height
+            const ctx = canvas.getContext("2d")
+            if (!ctx) return reject(new Error("Canvas not supported"))
+            ctx.drawImage(img, 0, 0, width, height)
+
+            // Convert to JPEG to reduce size (acceptable for receipts)
+            const resized = canvas.toDataURL("image/jpeg", quality)
+            resolve(resized)
           }
-          // reset user confirmation if OCR now identifies a payment
-          if (ocr.isPayment) setConfirmNotPayment(false)
+          img.onerror = (err) => reject(err)
+          img.src = dataUrl
+        })
+      }
+
+      ;(async () => {
+        try {
+          setIsProcessingOCR(true)
+
+          if (isPdf) {
+            // PDFs: read directly, no client-side resize
+            const dataUrl = await readAsDataUrl(file)
+            setFileData(dataUrl)
+
+            const ocr = await processPaymentProof(dataUrl)
+            setOcrResult(ocr)
+            if (ocr.amount && !formData.amount) {
+              setFormData((prev) => ({ ...prev, amount: ocr.amount!.toString() }))
+            }
+            if (ocr.isPayment) setConfirmNotPayment(false)
+            return
+          }
+
+          if (isImage) {
+            // If the image is already small enough, just read it
+            if (file.size <= MAX_IMAGE_SIZE_BYTES) {
+              const dataUrl = await readAsDataUrl(file)
+              setFileData(dataUrl)
+
+              const ocr = await processPaymentProof(dataUrl)
+              setOcrResult(ocr)
+              if (ocr.amount && !formData.amount) {
+                setFormData((prev) => ({ ...prev, amount: ocr.amount!.toString() }))
+              }
+              if (ocr.isPayment) setConfirmNotPayment(false)
+              return
+            }
+
+            // Otherwise, read and resize
+            const originalDataUrl = await readAsDataUrl(file)
+            let resized = await resizeImageDataUrl(originalDataUrl, MAX_DIMENSION, 0.8)
+
+            // If resized still too big, reduce quality iteratively
+            let attemptQuality = 0.75
+            while (resized.length > MAX_IMAGE_SIZE_BYTES * 1.37 && attemptQuality >= 0.4) {
+              // approximate: dataURL size ~ 1.37 * binary size
+              resized = await resizeImageDataUrl(originalDataUrl, MAX_DIMENSION, attemptQuality)
+              attemptQuality -= 0.15
+            }
+
+            setFileData(resized)
+            // update filename extension to jpg for clarity
+            if (!fileName.toLowerCase().endsWith(".jpg") && !fileName.toLowerCase().endsWith(".jpeg")) {
+              setFileName((n) => n.replace(/\.[^.]+$/, "") + ".jpg")
+            }
+
+            const ocr = await processPaymentProof(resized)
+            setOcrResult(ocr)
+            if (ocr.amount && !formData.amount) {
+              setFormData((prev) => ({ ...prev, amount: ocr.amount!.toString() }))
+            }
+            if (ocr.isPayment) setConfirmNotPayment(false)
+          } else {
+            // Unknown type: attempt to read and process, but warn user
+            const dataUrl = await readAsDataUrl(file)
+            setFileData(dataUrl)
+            const ocr = await processPaymentProof(dataUrl)
+            setOcrResult(ocr)
+            if (ocr.amount && !formData.amount) {
+              setFormData((prev) => ({ ...prev, amount: ocr.amount!.toString() }))
+            }
+            if (ocr.isPayment) setConfirmNotPayment(false)
+          }
         } catch (error) {
           console.error("[v0] OCR processing error:", error)
+          alert("Failed to process uploaded file. Please try a smaller image or a different file.")
         } finally {
           setIsProcessingOCR(false)
         }
-      }
-      reader.readAsDataURL(file)
+      })()
     }
   }
 
