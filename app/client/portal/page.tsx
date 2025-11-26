@@ -78,7 +78,7 @@ export default function ClientPortal() {
       : 0
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-full sm:max-w-4xl mx-auto px-4 sm:px-0 min-h-screen sm:min-h-0">
       {clientInfo && (
         <div className="bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/30 rounded-lg p-4 sm:p-6">
           <h2 className="text-sm sm:text-lg font-semibold text-foreground mb-3 sm:mb-4 flex items-center gap-2">

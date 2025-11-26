@@ -227,14 +227,27 @@ async function getPaymentsByClient(clientId) {
     try {
         checkFirebaseAvailable();
         const paymentsRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["collection"])(__TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$lib$2f$firebase$2f$config$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["db"], PAYMENTS_COLLECTION);
-        const q = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["query"])(paymentsRef, (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["where"])("clientId", "==", clientId), (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["orderBy"])("submittedAt", "desc"));
+        // Use where only (no orderBy) to avoid index requirement, then sort in memory
+        const q = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["query"])(paymentsRef, (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["where"])("clientId", "==", clientId));
         const querySnapshot = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["getDocs"])(q);
-        return querySnapshot.docs.map(firestoreToPayment);
+        const payments = querySnapshot.docs.map(firestoreToPayment);
+        // Sort by submittedAt descending in memory
+        return payments.sort((a, b)=>new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
     } catch (error) {
         console.error("Error getting payments by client:", error);
-        // If it's an index error, show helpful message
+        // If it's an index error, try fallback method
         if (error?.code === "failed-precondition" && error?.message?.includes("index")) {
-            console.error("⚠️ Firestore index required! Click the link in the error above to create it automatically, or see FIRESTORE_INDEXES.md for manual setup.");
+            console.warn("Index error detected, trying fallback method...");
+            try {
+                // Fallback: Get all payments and filter in memory
+                const paymentsRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["collection"])(__TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$lib$2f$firebase$2f$config$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["db"], PAYMENTS_COLLECTION);
+                const querySnapshot = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["getDocs"])(paymentsRef);
+                const allPayments = querySnapshot.docs.map(firestoreToPayment);
+                const filtered = allPayments.filter((p)=>p.clientId === clientId);
+                return filtered.sort((a, b)=>new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+            } catch (fallbackError) {
+                console.error("Fallback method also failed:", fallbackError);
+            }
         }
         return [];
     }
@@ -243,14 +256,27 @@ async function getPaymentsByStatus(status) {
     try {
         checkFirebaseAvailable();
         const paymentsRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["collection"])(__TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$lib$2f$firebase$2f$config$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["db"], PAYMENTS_COLLECTION);
-        const q = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["query"])(paymentsRef, (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["where"])("status", "==", status), (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["orderBy"])("submittedAt", "desc"));
+        // Use where only (no orderBy) to avoid index requirement, then sort in memory
+        const q = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["query"])(paymentsRef, (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["where"])("status", "==", status));
         const querySnapshot = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["getDocs"])(q);
-        return querySnapshot.docs.map(firestoreToPayment);
+        const payments = querySnapshot.docs.map(firestoreToPayment);
+        // Sort by submittedAt descending in memory
+        return payments.sort((a, b)=>new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
     } catch (error) {
         console.error("Error getting payments by status:", error);
-        // If it's an index error, show helpful message
+        // If it's an index error, try fallback method
         if (error?.code === "failed-precondition" && error?.message?.includes("index")) {
-            console.error("⚠️ Firestore index required! Click the link in the error above to create it automatically, or see FIRESTORE_INDEXES.md for manual setup.");
+            console.warn("Index error detected, trying fallback method...");
+            try {
+                // Fallback: Get all payments and filter in memory
+                const paymentsRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["collection"])(__TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$lib$2f$firebase$2f$config$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["db"], PAYMENTS_COLLECTION);
+                const querySnapshot = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["getDocs"])(paymentsRef);
+                const allPayments = querySnapshot.docs.map(firestoreToPayment);
+                const filtered = allPayments.filter((p)=>p.status === status);
+                return filtered.sort((a, b)=>new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+            } catch (fallbackError) {
+                console.error("Fallback method also failed:", fallbackError);
+            }
         }
         return [];
     }
@@ -262,23 +288,47 @@ function subscribeToPayments(callback, clientId, status) {
             return ()=>{};
         }
         const paymentsRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["collection"])(__TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$lib$2f$firebase$2f$config$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["db"], PAYMENTS_COLLECTION);
-        let q = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["query"])(paymentsRef, (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["orderBy"])("submittedAt", "desc"));
-        if (clientId) {
-            q = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["query"])(paymentsRef, (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["where"])("clientId", "==", clientId), (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["orderBy"])("submittedAt", "desc"));
-        }
-        if (status) {
-            q = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["query"])(paymentsRef, ...clientId ? [
-                (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["where"])("clientId", "==", clientId)
-            ] : [], (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["where"])("status", "==", status), (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["orderBy"])("submittedAt", "desc"));
+        // Build query without orderBy to avoid index requirement
+        // We'll sort in memory instead
+        let q;
+        if (clientId && status) {
+            // For multiple filters, we need to get all and filter in memory
+            q = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["query"])(paymentsRef);
+        } else if (clientId) {
+            q = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["query"])(paymentsRef, (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["where"])("clientId", "==", clientId));
+        } else if (status) {
+            q = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["query"])(paymentsRef, (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["where"])("status", "==", status));
+        } else {
+            q = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["query"])(paymentsRef);
         }
         const unsubscribe = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["onSnapshot"])(q, (snapshot)=>{
-            const payments = snapshot.docs.map(firestoreToPayment);
+            let payments = snapshot.docs.map(firestoreToPayment);
+            // Apply filters in memory if needed
+            if (clientId) {
+                payments = payments.filter((p)=>p.clientId === clientId);
+            }
+            if (status) {
+                payments = payments.filter((p)=>p.status === status);
+            }
+            // Sort by submittedAt descending in memory
+            payments.sort((a, b)=>new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
             callback(payments);
         }, (error)=>{
             console.error("Error subscribing to payments:", error);
-            // If it's an index error, show helpful message
+            // If it's an index error, try fallback: subscribe to all and filter in memory
             if (error?.code === "failed-precondition" && error?.message?.includes("index")) {
-                console.error("⚠️ Firestore index required! Click the link in the error above to create it automatically, or see FIRESTORE_INDEXES.md for manual setup.");
+                console.warn("Index error in subscription, using fallback method...");
+                const fallbackQ = (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["query"])(paymentsRef);
+                return (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f40$firebase$2f$firestore$2f$dist$2f$index$2e$esm$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["onSnapshot"])(fallbackQ, (snapshot)=>{
+                    let payments = snapshot.docs.map(firestoreToPayment);
+                    if (clientId) payments = payments.filter((p)=>p.clientId === clientId);
+                    if (status) payments = payments.filter((p)=>p.status === status);
+                    payments.sort((a, b)=>new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+                    callback(payments);
+                }, (fallbackError)=>{
+                    console.error("Fallback subscription also failed:", fallbackError);
+                    callback([]);
+                });
             }
             callback([]);
         });

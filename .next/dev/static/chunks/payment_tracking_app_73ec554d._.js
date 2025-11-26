@@ -1482,7 +1482,7 @@ function ClientPortal() {
     };
     const progressPercent = clientInfo && clientInfo.targetAmount > 0 ? Math.min(100, (clientInfo.targetAmount - clientInfo.remainingAmount) / clientInfo.targetAmount * 100) : 0;
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-        className: "space-y-6 max-w-4xl mx-auto",
+        className: "space-y-6 max-w-full sm:max-w-4xl mx-auto px-4 sm:px-0 min-h-screen sm:min-h-0",
         children: [
             clientInfo && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$payment_tracking_app$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                 className: "bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/30 rounded-lg p-4 sm:p-6",

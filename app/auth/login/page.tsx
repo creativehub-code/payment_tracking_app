@@ -117,7 +117,7 @@ export default function LoginPage() {
 
           <div className="text-xs text-muted text-center mt-4 space-y-1">
             <p>
-              <strong>Admin:</strong> admin@payment.com / admin123
+              
             </p>
             <p>
               <strong>Client:</strong> Must be registered by admin first
