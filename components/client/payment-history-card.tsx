@@ -11,7 +11,11 @@ export default function PaymentHistoryCard({ payment }: PaymentHistoryCardProps)
     <div className="border border-muted/30 rounded p-4 bg-muted-background/30 space-y-3">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-lg font-semibold text-foreground">${payment.amount.toFixed(2)}</p>
+          {payment.ocrAmount && payment.ocrAmount !== payment.amount ? (
+            <p className="text-lg font-semibold text-foreground">₹{payment.ocrAmount.toLocaleString("en-IN")} <span className="text-xs text-muted">(extracted)</span></p>
+          ) : (
+            <p className="text-lg font-semibold text-foreground">₹{payment.amount.toLocaleString("en-IN")}</p>
+          )}
           <p className="text-sm text-muted">{payment.description}</p>
         </div>
         <span

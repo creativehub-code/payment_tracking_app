@@ -25,7 +25,9 @@ export default function PaymentSubmissionForm({ onSubmit }: PaymentSubmissionFor
   const [ocrResult, setOcrResult] = useState<{
     amount: number | null
     text: string
+    isPayment?: boolean
   } | null>(null)
+  const [confirmNotPayment, setConfirmNotPayment] = useState(false)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -47,6 +49,8 @@ export default function PaymentSubmissionForm({ onSubmit }: PaymentSubmissionFor
               amount: ocr.amount!.toString(),
             }))
           }
+          // reset user confirmation if OCR now identifies a payment
+          if (ocr.isPayment) setConfirmNotPayment(false)
         } catch (error) {
           console.error("[v0] OCR processing error:", error)
         } finally {
@@ -61,6 +65,12 @@ export default function PaymentSubmissionForm({ onSubmit }: PaymentSubmissionFor
     e.preventDefault()
     if (!user?.id || !formData.amount || !formData.description) {
       alert("Please fill in all fields")
+      return
+    }
+
+    // If OCR ran and didn't detect a payment-like screenshot, require confirmation
+    if (ocrResult && ocrResult.isPayment === false && !confirmNotPayment) {
+      alert("Uploaded document does not look like a payment screenshot. Please confirm to proceed.")
       return
     }
 
@@ -84,6 +94,7 @@ export default function PaymentSubmissionForm({ onSubmit }: PaymentSubmissionFor
       setFileName("")
       setFileData("")
       setOcrResult(null)
+      setConfirmNotPayment(false)
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
@@ -145,6 +156,32 @@ export default function PaymentSubmissionForm({ onSubmit }: PaymentSubmissionFor
           {isProcessingOCR && <span className="text-xs text-primary animate-pulse">Processing with OCR...</span>}
         </div>
       </div>
+
+      {ocrResult && (
+        <div className="text-sm mt-2">
+          <p className="text-muted">OCR text preview:</p>
+          <div className="bg-background/50 border border-muted/20 rounded p-2 mt-1 text-xs whitespace-pre-wrap">{ocrResult.text}</div>
+          {ocrResult.amount ? (
+            <p className="text-xs text-muted mt-2">Extracted amount: ₹{ocrResult.amount.toLocaleString("en-IN")}</p>
+          ) : (
+            <p className="text-xs text-muted mt-2">No amount detected by OCR</p>
+          )}
+
+          {ocrResult.isPayment === false ? (
+            <div className="mt-2">
+              <p className="text-xs text-warning">This doesn't look like a payment screenshot.</p>
+              <label className="inline-flex items-center gap-2 mt-1 text-xs">
+                <input
+                  type="checkbox"
+                  checked={confirmNotPayment}
+                  onChange={(e) => setConfirmNotPayment(e.target.checked)}
+                />
+                <span>Confirm and submit anyway</span>
+              </label>
+            </div>
+          ) : null}
+        </div>
+      )}
 
       <button
         type="submit"
