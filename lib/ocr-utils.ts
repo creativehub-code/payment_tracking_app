@@ -39,27 +39,29 @@ export function extractAmountFromText(text: string): number | null {
   return null
 }
 
-export async function processPaymentProof(
-  fileData: string
-): Promise<{ text: string; amount: number | null; isPayment: boolean }> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // NOTE: This is a mock OCR implementation. In production replace with a real OCR
-      // call (Tesseract, Google Vision API, etc.) that returns the extracted text.
-      const mockText =
-        "Payment Receipt\nInvoice Date: 2025-01-15\nTransaction ID: TX12345\nTotal Amount: ₹1,250.00\nPaid via UPI"
-      const amount = extractAmountFromText(mockText)
+export async function processPaymentProof(fileData: string): Promise<{ text: string; amount: number | null; isPayment: boolean }> {
+  // Call the server API route which performs OCR using Google Vision
+  try {
+    const resp = await fetch("/api/ocr/process", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileData }),
+    })
 
-      // Determine whether the extracted text looks like a payment receipt/screenshot
-      const paymentKeywords = ["total", "amount", "paid", "receipt", "transaction", "upi", "invoice", "payment"]
-      const lowered = mockText.toLowerCase()
-      const isPayment = paymentKeywords.some((k) => lowered.includes(k))
+    if (!resp.ok) {
+      const text = await resp.text()
+      console.error("OCR server error:", resp.status, text)
+      return { text: "", amount: null, isPayment: false }
+    }
 
-      resolve({
-        text: mockText,
-        amount,
-        isPayment,
-      })
-    }, 1000)
-  })
+    const data = await resp.json()
+    return {
+      text: data.text || "",
+      amount: data.amount ?? null,
+      isPayment: !!data.isPayment,
+    }
+  } catch (err) {
+    console.error("processPaymentProof fetch error:", err)
+    return { text: "", amount: null, isPayment: false }
+  }
 }
