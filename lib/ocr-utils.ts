@@ -1,11 +1,10 @@
 export function extractAmountFromText(text: string): number | null {
   const patterns = [
     /₹\s*(\d+(?:[,]\d{3})*(?:[.]\d{2})?)/gi,
-    /(\d+(?:[,]\d{3})*(?:[.]\d{2}))\s*(?:INR|rupees?|₹)/gi,
-    /total[:\s]+₹?\s*(\d+(?:[,]\d{3})*(?:[.]\d{2})?)/gi,
-    /amount[:\s]+₹?\s*(\d+(?:[,]\d{3})*(?:[.]\d{2})?)/gi,
-    /price[:\s]+₹?\s*(\d+(?:[,]\d{3})*(?:[.]\d{2})?)/gi,
-    /payment[:\s]+₹?\s*(\d+(?:[,]\d{3})*(?:[.]\d{2})?)/gi,
+    /(\d+(?:[,]\d{3})*(?:[.]\d{2}))\s*(?:INR|rupees?|rs\.?|rs|₹)/gi,
+    /(?:total|amount|subtotal|grand total|balance)[:\s]*₹?\s*(\d+(?:[,]\d{3})*(?:[.]\d{2})?)/gi,
+    /(?:paid|payment|paid amount|amount paid|payment of)[:\s]*₹?\s*(\d+(?:[,]\d{3})*(?:[.]\d{2})?)/gi,
+    /(?:price|cost)[:\s]*₹?\s*(\d+(?:[,]\d{3})*(?:[.]\d{2})?)/gi,
   ]
 
   for (const pattern of patterns) {
@@ -30,6 +29,17 @@ export function extractAmountFromText(text: string): number | null {
   const fallbackMatch = text.match(fallbackPattern)
   if (fallbackMatch) {
     let numberStr = fallbackMatch[0].replace(/₹\s*/gi, "").replace(/,/g, "")
+    const amount = Number.parseFloat(numberStr)
+    if (!isNaN(amount) && amount > 0) {
+      return amount
+    }
+  }
+
+  // Second fallback: look for numbers with INR/Rs or nearby 'paid' keywords even without symbol
+  const nearPattern = /(?:inr|rs\.?|rs|rupees?)?\s*[:\-]?\s*(?:you paid|paid|paid to|payment of|amount)??\s*₹?\s*([0-9]{1,3}(?:[,0-9]*)(?:\.\d{1,2})?)/i
+  const nearMatch = text.match(nearPattern)
+  if (nearMatch && nearMatch[1]) {
+    let numberStr = nearMatch[1].replace(/,/g, "")
     const amount = Number.parseFloat(numberStr)
     if (!isNaN(amount) && amount > 0) {
       return amount

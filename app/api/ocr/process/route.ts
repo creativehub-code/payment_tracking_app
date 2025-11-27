@@ -57,9 +57,14 @@ export async function POST(req: Request) {
       "upi",
       "invoice",
       "payment",
+      "you paid",
+      "success",
+      "credited",
+      "debited",
     ]
     const lowered = (extractedText || "").toLowerCase()
-    const isPayment = paymentKeywords.some((k) => lowered.includes(k))
+    // Consider it a payment screenshot if keywords present OR an amount was successfully extracted
+    const isPayment = !!amount || paymentKeywords.some((k) => lowered.includes(k))
 
     return NextResponse.json({ text: extractedText, amount: amount ?? null, isPayment })
   } catch (err) {

@@ -175,7 +175,8 @@ export default function PaymentSubmissionForm({ onSubmit }: PaymentSubmissionFor
     }
 
     // If OCR ran and didn't detect a payment-like screenshot, require confirmation
-    if (ocrResult && ocrResult.isPayment === false && !confirmNotPayment) {
+    // But allow submission when OCR did extract an amount (amount implies payment)
+    if (ocrResult && ocrResult.isPayment === false && !confirmNotPayment && !ocrResult.amount) {
       alert("Uploaded document does not look like a payment screenshot. Please confirm to proceed.")
       return
     }
