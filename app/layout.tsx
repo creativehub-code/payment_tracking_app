@@ -43,8 +43,8 @@ export default function RootLayout({
         <meta name="theme-color" content="#0ea5a4" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <link rel="apple-touch-icon" href="/apple-icon.png" />
-        <link rel="icon" href="/icon.svg" />
+        <link rel="apple-touch-icon" href="/appicon.jpg" />
+        <link rel="icon" href="/appicon.jpg" />
       </head>
       <body className={`font-sans antialiased`}>
         <AuthProvider>{children}</AuthProvider>
