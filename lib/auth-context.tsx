@@ -71,9 +71,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     role: UserRole,
   ): Promise<{ success: boolean; error?: string }> => {
+    const normEmail = email.trim().toLowerCase()
+    const normPassword = password.trim()
     // Admin login validation
     if (role === "admin") {
-      if (email !== ADMIN_CREDENTIALS.email || password !== ADMIN_CREDENTIALS.password) {
+      if (normEmail !== ADMIN_CREDENTIALS.email || normPassword !== ADMIN_CREDENTIALS.password) {
         return { success: false, error: "Invalid admin credentials. Use admin@payment.com / admin123" }
       }
       const adminUser: User = {
@@ -90,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Client login - must be registered by admin
     const clients = getStoredClients()
-    const client = clients.find((c) => c.email === email && c.password === password)
+    const client = clients.find((c) => c.email.trim().toLowerCase() === normEmail && c.password === normPassword)
 
     if (!client) {
       return { success: false, error: "Invalid credentials. Please contact admin for account access." }
