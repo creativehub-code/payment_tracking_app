@@ -1,4 +1,15 @@
 export function extractAmountFromText(text: string): number | null {
+  if (!text || typeof text !== "string") return null
+
+  // Quick/simple scan: look for the rupee symbol followed by a number (very common in screenshots)
+  const simpleRupee = /₹\s*([0-9]+(?:[.,][0-9]{1,2})?)/i
+  const simpleMatch = text.match(simpleRupee)
+  if (simpleMatch && simpleMatch[1]) {
+    let numberStr = simpleMatch[1].replace(/,/g, "")
+    const amount = Number.parseFloat(numberStr)
+    if (!isNaN(amount) && amount > 0) return amount
+  }
+
   const patterns = [
     /₹\s*(\d+(?:[,]\d{3})*(?:[.]\d{2})?)/gi,
     /(\d+(?:[,]\d{3})*(?:[.]\d{2}))\s*(?:INR|rupees?|rs\.?|rs|₹)/gi,
