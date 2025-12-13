@@ -18,7 +18,13 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.clientId == request.auth.uid;
 
       // Read: allow if owner or admin
-      allow read: if isSignedIn() && (isAdmin() || resource.data.clientId == request.auth.uid);
+      // Temporary dev allowance: allow any authenticated user to read payments until 2026-01-01.
+      // This unblocks clients while migrating existing records to use Auth UIDs.
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.clientId == request.auth.uid ||
+        request.time < timestamp.date(2026, 1, 1)
+      );
 
       // Update/Delete: admin-only (to prevent clients from modifying stored payments)
       allow update, delete: if isAdmin();
