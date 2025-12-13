@@ -46,27 +46,10 @@ export async function POST(req: Request) {
     const annotation = data?.responses?.[0]
     const extractedText = annotation?.fullTextAnnotation?.text || annotation?.textAnnotations?.[0]?.description || ""
 
-    const amount = extractAmountFromText(extractedText)
-
-    const paymentKeywords = [
-      "total",
-      "amount",
-      "paid",
-      "receipt",
-      "transaction",
-      "upi",
-      "invoice",
-      "payment",
-      "you paid",
-      "success",
-      "credited",
-      "debited",
-    ]
-    const lowered = (extractedText || "").toLowerCase()
-    // Consider it a payment screenshot if keywords present OR an amount was successfully extracted
-    const isPayment = !!amount || paymentKeywords.some((k) => lowered.includes(k))
-
-    return NextResponse.json({ text: extractedText, amount: amount ?? null, isPayment })
+    // NOTE: per recent change, we no longer attempt to auto-extract amounts from screenshots.
+    // This endpoint returns OCR text only. Amount extraction/auto-fill has been disabled
+    // to avoid incorrect auto-population from varied screenshot formats.
+    return NextResponse.json({ text: extractedText, amount: null, isPayment: false })
   } catch (err) {
     console.error("/api/ocr/process error:", err)
     return NextResponse.json({ error: "Server error" }, { status: 500 })
