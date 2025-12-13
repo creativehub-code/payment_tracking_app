@@ -20,55 +20,46 @@ service cloud.firestore {
 This allows all access until December 31, 2025. **Only use for development!**
 
 ## Production Security Rules
+For production we recommend requiring Firebase Authentication and using a small set of server-side checks.
 
-For production, use these more secure rules:
+This repository includes a recommended rules file at `./firestore.rules` that:
+- requires signed-in users for `payments` and `clients` access
+- allows clients to create/read their own payments (`payments.clientId == request.auth.uid`)
+- grants admin users (via a custom claim `admin:true`) broader privileges (read/update/delete)
 
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    
-    // Helper function to check if user is authenticated
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    // Payments collection
-    match /payments/{paymentId} {
-      // Anyone can read payments (for now - adjust as needed)
-      allow read: if true;
-      // Anyone can create payments
-      allow create: if true;
-      // Only authenticated users can update/delete
-      allow update, delete: if isAuthenticated();
-    }
-    
-    // Clients collection
-    match /clients/{clientId} {
-      // Anyone can read clients
-      allow read: if true;
-      // Anyone can create clients (admin will manage this)
-      allow create: if true;
-      // Anyone can update/delete clients
-      allow update, delete: if true;
-    }
-    
-    // Notifications collection
-    match /notifications/{notificationId} {
-      // Users can read their own notifications
-      allow read: if request.auth != null && 
-                     request.auth.uid == resource.data.userId;
-      // Anyone can create notifications
-      allow create: if true;
-      // Users can update their own notifications
-      allow update: if request.auth != null && 
-                       request.auth.uid == resource.data.userId;
-      // Only authenticated users can delete
-      allow delete: if isAuthenticated();
-    }
-  }
-}
+Example highlights from `firestore.rules`:
+
+- `allow create: if request.auth != null && request.resource.data.clientId == request.auth.uid` (payments)
+- `allow read: if request.auth != null && (request.auth.token.admin == true || resource.data.clientId == request.auth.uid)`
+
+This gives a secure baseline while allowing an administrator (with the `admin` custom claim) to manage data.
+
+### Setting an admin user
+You must set the `admin` custom claim for an admin account using the Firebase Admin SDK from a trusted environment (server or Cloud Function). Example (Node):
+
+```js
+const admin = require('firebase-admin')
+// initialize admin SDK with service account
+admin.auth().setCustomUserClaims(uid, { admin: true }).then(() => {
+  console.log('Admin claim set for', uid)
+})
 ```
+
+### Deploying rules
+Using the Firebase CLI (recommended):
+
+```powershell
+# Install the CLI if needed
+npm install -g firebase-tools
+
+# Login
+firebase login
+
+# From the project root, deploy only Firestore rules
+firebase deploy --only firestore:rules
+```
+
+If you prefer to paste rules in the Firebase Console, open Firestore → Rules and paste the contents of `./firestore.rules`.
 
 ## How to Apply Rules
 

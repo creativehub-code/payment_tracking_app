@@ -1,0 +1,49 @@
+// Firestore security rules for payment_tracking_app
+// Requires Firebase Authentication for reads/writes and uses a custom claim `admin:true` for admin privileges.
+// Best practice: store `clients/{uid}` docs keyed by the Firebase Auth UID and set `clientId` on payments to that UID.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    // Payments: owner (client) can create/read their own payments; admin can read/update/delete all.
+    match /payments/{paymentId} {
+      // Create: require clientId to match authenticated uid
+      allow create: if isSignedIn() && request.resource.data.clientId == request.auth.uid;
+
+      // Read: allow if owner or admin
+      allow read: if isSignedIn() && (isAdmin() || resource.data.clientId == request.auth.uid);
+
+      // Update/Delete: admin-only (to prevent clients from modifying stored payments)
+      allow update, delete: if isAdmin();
+    }
+
+    // Clients: admin manages clients; client can read their own client doc
+    match /clients/{clientId} {
+      // Read: owner or admin
+      allow read: if isSignedIn() && (isAdmin() || request.auth.uid == clientId);
+
+      // Create / Update / Delete: admin only
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Notifications: owner can read/write their own notifications; admin can manage all
+    match /notifications/{notificationId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow update: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // Deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

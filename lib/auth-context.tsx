@@ -2,6 +2,13 @@
 
 import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
+import { auth as firebaseAuth, db as firebaseDb } from "./firebase/config"
+import { doc, setDoc } from "firebase/firestore"
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+} from "firebase/auth"
 import type { User, UserRole } from "./types"
 
 interface RegisteredClient {
@@ -26,6 +33,7 @@ interface AuthContextType {
     password: string,
     name: string,
     targetAmount: number,
+    id?: string,
   ) => { success: boolean; error?: string }
   getClients: () => RegisteredClient[]
   deleteClient: (clientId: string) => void
@@ -54,6 +62,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // If Firebase Auth is configured, use it; otherwise fall back to localStorage
+    if (firebaseAuth) {
+      const unsub = onAuthStateChanged(firebaseAuth, (fbUser) => {
+        if (fbUser) {
+          const u: User = {
+            id: fbUser.uid,
+            email: fbUser.email || "",
+            name: fbUser.displayName || fbUser.email || "",
+            role: fbUser.email === ADMIN_CREDENTIALS.email ? "admin" : "client",
+            createdAt: fbUser.metadata ? new Date(fbUser.metadata.creationTime || Date.now()).toISOString() : new Date().toISOString(),
+          }
+          setUser(u)
+          try {
+            localStorage.setItem("paymentTracker_user", JSON.stringify(u))
+          } catch (e) {
+            // ignore
+          }
+        } else {
+          // no user signed in
+          setUser(null)
+          try {
+            localStorage.removeItem("paymentTracker_user")
+          } catch (e) {
+            // ignore
+          }
+        }
+        setIsLoading(false)
+      })
+      return () => unsub()
+    }
+
+    // fallback: read from localStorage when Firebase isn't configured
     const storedUser = localStorage.getItem("paymentTracker_user")
     if (storedUser) {
       try {
@@ -73,6 +113,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ): Promise<{ success: boolean; error?: string }> => {
     const normEmail = email.trim().toLowerCase()
     const normPassword = password.trim()
+    // If Firebase Auth is configured, sign in via Firebase
+    if (firebaseAuth) {
+      try {
+        const cred = await signInWithEmailAndPassword(firebaseAuth, normEmail, normPassword)
+        const fbUser = cred.user
+        const u: User = {
+          id: fbUser.uid,
+          email: fbUser.email || normEmail,
+          name: fbUser.displayName || fbUser.email || normEmail,
+          role: fbUser.email === ADMIN_CREDENTIALS.email ? "admin" : "client",
+          createdAt: fbUser.metadata ? new Date(fbUser.metadata.creationTime || Date.now()).toISOString() : new Date().toISOString(),
+        }
+        setUser(u)
+        try {
+          localStorage.setItem("paymentTracker_user", JSON.stringify(u))
+        } catch (e) {
+          // ignore
+        }
+        return { success: true }
+      } catch (error: any) {
+        const message = error?.message || "Failed to sign in"
+        return { success: false, error: message }
+      }
+    }
+
+    // Fallback localStorage-based auth (admin + registered clients)
     // Admin login validation
     if (role === "admin") {
       if (normEmail !== ADMIN_CREDENTIALS.email || normPassword !== ADMIN_CREDENTIALS.password) {
@@ -111,6 +177,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = () => {
+    if (firebaseAuth) {
+      try {
+        firebaseSignOut(firebaseAuth)
+      } catch (e) {
+        // ignore
+      }
+    }
     setUser(null)
     localStorage.removeItem("paymentTracker_user")
   }
@@ -120,15 +193,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     name: string,
     targetAmount: number,
+    id?: string,
   ): { success: boolean; error?: string } => {
     const clients = getStoredClients()
 
     if (clients.some((c) => c.email === email)) {
       return { success: false, error: "Client with this email already exists" }
     }
-
     const newClient: RegisteredClient = {
-      id: `client_${Date.now()}`,
+      id: id || `client_${Date.now()}`,
       email,
       password,
       name,
@@ -136,6 +209,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       createdBy: user?.id || "admin",
       targetAmount: targetAmount,
       remainingAmount: targetAmount,
+    }
+
+    // If Firestore is configured, persist a clients/{id} document as well
+    if (firebaseDb) {
+      try {
+        const clientRef = doc(firebaseDb, "clients", newClient.id)
+        // store client data without password for security
+        const { password: _pw, ...clientSafe } = newClient as any
+        setDoc(clientRef, clientSafe)
+      } catch (err) {
+        console.error("Failed to write client to Firestore:", err)
+        // still fall back to localStorage
+      }
     }
 
     saveClients([...clients, newClient])

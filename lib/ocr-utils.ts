@@ -1,59 +1,63 @@
 export function extractAmountFromText(text: string): number | null {
   if (!text || typeof text !== "string") return null
 
-  // Quick/simple scan: look for the rupee symbol followed by a number (very common in screenshots)
-  const simpleRupee = /₹\s*([0-9]+(?:[.,][0-9]{1,2})?)/i
-  const simpleMatch = text.match(simpleRupee)
-  if (simpleMatch && simpleMatch[1]) {
-    let numberStr = simpleMatch[1].replace(/,/g, "")
-    const amount = Number.parseFloat(numberStr)
+  // Normalize whitespace and common non-breaking spaces that OCR may return
+  const normalized = text.replace(/[\u00A0\u2009\u202F\u200B\uFEFF]/g, " ").replace(/\s+/g, " ").trim()
+
+  // Helper to clean a captured number string: remove commas/space grouping and keep a single decimal point
+  function cleanNumberString(s: string) {
+    if (!s) return ""
+    // Remove any non-digit or non-dot characters (commas, spaces, NBSP, etc.)
+    // Keep digits and dot; if multiple dots exist, keep the first and remove the rest
+    let cleaned = s.replace(/[^\d.]/g, "")
+    const parts = cleaned.split('.')
+    if (parts.length > 1) {
+      cleaned = parts[0] + '.' + parts.slice(1).join('')
+    }
+    return cleaned
+  }
+
+  // Quick rupee-first scan (handles ₹, Unicode rupee U+20B9, 'Rs', 'INR')
+  const currencySymbolPattern = /(?:₹|\u20B9|Rs\.?|INR)/i
+  const rupeeFirst = /(?:₹|\u20B9|Rs\.?|INR)[\s\u00A0\u2009]{0,6}([0-9][0-9,\.\s]*)/i
+  const m = normalized.match(rupeeFirst)
+  if (m && m[1]) {
+    const numStr = cleanNumberString(m[1])
+    const amount = Number.parseFloat(numStr)
     if (!isNaN(amount) && amount > 0) return amount
   }
 
-  const patterns = [
-    /₹\s*(\d+(?:[,]\d{3})*(?:[.]\d{2})?)/gi,
-    /(\d+(?:[,]\d{3})*(?:[.]\d{2}))\s*(?:INR|rupees?|rs\.?|rs|₹)/gi,
-    /(?:total|amount|subtotal|grand total|balance)[:\s]*₹?\s*(\d+(?:[,]\d{3})*(?:[.]\d{2})?)/gi,
-    /(?:paid|payment|paid amount|amount paid|payment of)[:\s]*₹?\s*(\d+(?:[,]\d{3})*(?:[.]\d{2})?)/gi,
-    /(?:price|cost)[:\s]*₹?\s*(\d+(?:[,]\d{3})*(?:[.]\d{2})?)/gi,
+  // Common labeled patterns (amount: 1,234.56 INR) - look for keywords near numbers
+  const labeledPatterns = [
+    /(?:total|amount|subtotal|grand total|balance|paid|payment|amount paid|paid amount)[:\s]{0,6}([0-9][0-9,\.\s]*)(?:\s*(?:₹|\u20B9|INR|Rs\.?))?/gi,
+    /(?:₹|\u20B9|Rs\.?|INR)[:\s]{0,6}([0-9][0-9,\.\s]*)/gi,
   ]
 
-  for (const pattern of patterns) {
-    const matches = text.matchAll(pattern)
-    for (const match of matches) {
+  for (const pat of labeledPatterns) {
+    const it = normalized.matchAll(pat)
+    for (const match of it) {
       if (match[1]) {
-        // Extract the captured group (the number part)
-        let numberStr = match[1]
-        // Remove commas (Indian number format: 1,250.00)
-        numberStr = numberStr.replace(/,/g, "")
-        // Parse as float
-        const amount = Number.parseFloat(numberStr)
-        if (!isNaN(amount) && amount > 0) {
-          return amount
-        }
+        const numStr = cleanNumberString(match[1])
+        const amount = Number.parseFloat(numStr)
+        if (!isNaN(amount) && amount > 0) return amount
       }
     }
   }
 
-  // Fallback: try to find any number with currency symbol
-  const fallbackPattern = /₹\s*([\d,]+(?:\.\d{2})?)/gi
-  const fallbackMatch = text.match(fallbackPattern)
-  if (fallbackMatch) {
-    let numberStr = fallbackMatch[0].replace(/₹\s*/gi, "").replace(/,/g, "")
-    const amount = Number.parseFloat(numberStr)
-    if (!isNaN(amount) && amount > 0) {
-      return amount
-    }
-  }
-
-  // Second fallback: look for numbers with INR/Rs or nearby 'paid' keywords even without symbol
-  const nearPattern = /(?:inr|rs\.?|rs|rupees?)?\s*[:\-]?\s*(?:you paid|paid|paid to|payment of|amount)??\s*₹?\s*([0-9]{1,3}(?:[,0-9]*)(?:\.\d{1,2})?)/i
-  const nearMatch = text.match(nearPattern)
-  if (nearMatch && nearMatch[1]) {
-    let numberStr = nearMatch[1].replace(/,/g, "")
-    const amount = Number.parseFloat(numberStr)
-    if (!isNaN(amount) && amount > 0) {
-      return amount
+  // Fallback: find the first reasonably-sized number in the text (2-12 digits, allow grouping and decimals)
+  const genericNumber = /([0-9][0-9,\.\s]{0,12}[0-9](?:\.[0-9]{1,2})?)/g
+  const genMatch = normalized.matchAll(genericNumber)
+  for (const match of genMatch) {
+    if (match[1]) {
+      // Prefer numbers that appear next to a currency symbol nearby
+      const idx = normalized.indexOf(match[1])
+      const windowStart = Math.max(0, idx - 12)
+      const window = normalized.slice(windowStart, idx + match[1].length + 12)
+      if (currencySymbolPattern.test(window) || /paid|amount|total|rupee|rs\.?/i.test(window)) {
+        const numStr = cleanNumberString(match[1])
+        const amount = Number.parseFloat(numStr)
+        if (!isNaN(amount) && amount > 0) return amount
+      }
     }
   }
 

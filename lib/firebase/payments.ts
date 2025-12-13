@@ -6,6 +6,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  setDoc,
   query,
   where,
   orderBy,
@@ -13,7 +14,7 @@ import {
   Timestamp,
   type DocumentData,
 } from "firebase/firestore"
-import { db } from "./config"
+import { db, auth } from "./config"
 
 // Helper to check if Firebase is available
 function checkFirebaseAvailable(): void {
@@ -89,30 +90,24 @@ export async function getPayment(id: string): Promise<Payment | null> {
 export async function savePayment(payment: Payment): Promise<void> {
   try {
     checkFirebaseAvailable()
-    if (payment.id && payment.id.startsWith("payment_")) {
-      // Update existing payment
-      const paymentRef = doc(db!, PAYMENTS_COLLECTION, payment.id)
-      const { id, ...paymentData } = payment
-      await updateDoc(paymentRef, paymentToFirestore(paymentData) as any)
-    } else {
-      // Create new payment
-      const { id, ...paymentData } = payment
-      const newId = id || `payment_${Date.now()}`
-      const paymentRef = doc(db, PAYMENTS_COLLECTION, newId)
-      await updateDoc(paymentRef, { ...paymentToFirestore(paymentData), id: newId } as any)
+    const { id, ...paymentData } = payment
+
+    // Enforce clientId to be the currently authenticated user's UID when available
+    if (auth && auth.currentUser) {
+      try {
+        // Overwrite any incoming clientId with the authenticated uid
+        ;(paymentData as any).clientId = auth.currentUser.uid
+      } catch (e) {
+        // ignore
+      }
     }
-    } catch (error) {
-    // If update fails, try to create new document
-    try {
-      checkFirebaseAvailable()
-      const paymentsRef = collection(db!, PAYMENTS_COLLECTION)
-      const { id, ...paymentData } = payment
-      const newId = id || `payment_${Date.now()}`
-      await addDoc(paymentsRef, { ...paymentToFirestore(paymentData), id: newId })
-    } catch (addError) {
-      console.error("Error saving payment:", addError)
-      throw addError
-    }
+
+    const newId = id || `payment_${Date.now()}`
+    const paymentRef = doc(db!, PAYMENTS_COLLECTION, newId)
+    await setDoc(paymentRef, { ...paymentToFirestore(paymentData), id: newId } as any)
+  } catch (error) {
+    console.error("Error saving payment:", error)
+    throw error
   }
 }
 

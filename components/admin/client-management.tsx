@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState } from "react"
+import { auth as firebaseAuth } from "@/lib/firebase/config"
 import { useAuth } from "@/lib/auth-context"
 import { getPaymentsByClient } from "@/lib/payment-store"
 import type { Payment } from "@/lib/types"
@@ -60,6 +61,8 @@ export default function ClientManagement() {
   const [password, setPassword] = useState("")
   const [name, setName] = useState("")
   const [targetAmount, setTargetAmount] = useState("")
+  const [makeAdmin, setMakeAdmin] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingTarget, setEditingTarget] = useState<string | null>(null)
   const [editTargetValue, setEditTargetValue] = useState("")
 
@@ -81,7 +84,7 @@ export default function ClientManagement() {
     return { total, approved, pending, rejected, count: payments.length }
   }
 
-  const handleAddClient = (e: React.FormEvent) => {
+  const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setSuccess("")
@@ -97,6 +100,48 @@ export default function ClientManagement() {
       return
     }
 
+    let serverSucceeded = false
+    try {
+      setIsSubmitting(true)
+      if (firebaseAuth && firebaseAuth.currentUser) {
+        const idToken = await firebaseAuth.currentUser.getIdToken()
+        const res = await fetch("/api/admin/create-client", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ email, password, name, targetAmount: target, makeAdmin }),
+        })
+
+        const data = await res.json().catch(() => ({ error: `Invalid JSON from server (status ${res.status})` }))
+        if (res.ok && data?.uid) {
+          // Create local client with returned uid to keep localStorage in sync
+          addClient(email, password, name, target, data.uid)
+          setSuccess(`Client "${name}" added successfully with target ₹${target.toLocaleString("en-IN")}`)
+          setEmail("")
+          setPassword("")
+          setName("")
+          setTargetAmount("")
+          setMakeAdmin(false)
+          setClients(getClients())
+          setShowForm(false)
+          serverSucceeded = true
+        } else {
+          const errMsg = data?.error || `Server returned ${res.status}`
+          setError(`Server error: ${errMsg}. Creating client locally as fallback.`)
+        }
+      }
+    } catch (err: any) {
+      console.warn("Server client creation failed, falling back to local:", err)
+      setError(`Server client creation failed: ${String(err?.message || err)}. Creating client locally.`)
+    } finally {
+      setIsSubmitting(false)
+    }
+
+    if (serverSucceeded) return
+
+    // Fallback: create client locally (legacy behavior)
     const result = addClient(email, password, name, target)
     if (result.success) {
       setSuccess(`Client "${name}" added successfully with target ₹${target.toLocaleString("en-IN")}`)
@@ -235,15 +280,27 @@ export default function ClientManagement() {
                   min="1"
                 />
               </div>
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center gap-2 text-xs sm:text-sm">
+                  <input
+                    type="checkbox"
+                    checked={makeAdmin}
+                    onChange={(e) => setMakeAdmin(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-sm">Make this user an admin</span>
+                </label>
+              </div>
             </div>
             <div className="flex gap-2">
               <Button
                 type="submit"
                 size="sm"
                 className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm px-2 sm:px-3 h-auto py-1.5 sm:py-2"
+                disabled={isSubmitting}
               >
-                <span className="hidden sm:inline">Create Client</span>
-                <span className="sm:hidden">Create</span>
+                {isSubmitting ? <span className="hidden sm:inline">Creating…</span> : <span className="hidden sm:inline">Create Client</span>}
+                {isSubmitting ? <span className="sm:hidden">Creating</span> : <span className="sm:hidden">Create</span>}
               </Button>
               <Button
                 type="button"
