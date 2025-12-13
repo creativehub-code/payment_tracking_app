@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { processPaymentProof } from "@/lib/ocr-utils"
+import { processPaymentProof, extractAmountFromText } from "@/lib/ocr-utils"
 import { useAuth } from "@/lib/auth-context"
 import { savePayment } from "@/lib/payment-store"
 import type { Payment } from "@/lib/types"
@@ -27,6 +27,7 @@ export default function PaymentSubmissionForm({ onSubmit }: PaymentSubmissionFor
     text: string
     isPayment?: boolean
   } | null>(null)
+  const [suggestedAmount, setSuggestedAmount] = useState<number | null>(null)
   const [confirmNotPayment, setConfirmNotPayment] = useState(false)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,9 +101,7 @@ export default function PaymentSubmissionForm({ onSubmit }: PaymentSubmissionFor
 
             const ocr = await processPaymentProof(dataUrl)
             setOcrResult(ocr)
-            if (ocr.amount && !formData.amount) {
-              setFormData((prev) => ({ ...prev, amount: ocr.amount!.toString() }))
-            }
+            setSuggestedAmount(extractAmountFromText(ocr.text))
             if (ocr.isPayment) setConfirmNotPayment(false)
             return
           }
@@ -115,9 +114,7 @@ export default function PaymentSubmissionForm({ onSubmit }: PaymentSubmissionFor
 
               const ocr = await processPaymentProof(dataUrl)
               setOcrResult(ocr)
-              if (ocr.amount && !formData.amount) {
-                setFormData((prev) => ({ ...prev, amount: ocr.amount!.toString() }))
-              }
+              setSuggestedAmount(extractAmountFromText(ocr.text))
               if (ocr.isPayment) setConfirmNotPayment(false)
               return
             }
@@ -142,9 +139,7 @@ export default function PaymentSubmissionForm({ onSubmit }: PaymentSubmissionFor
 
             const ocr = await processPaymentProof(resized)
             setOcrResult(ocr)
-            if (ocr.amount && !formData.amount) {
-              setFormData((prev) => ({ ...prev, amount: ocr.amount!.toString() }))
-            }
+            setSuggestedAmount(extractAmountFromText(ocr.text))
             if (ocr.isPayment) setConfirmNotPayment(false)
           } else {
             // Unknown type: attempt to read and process, but warn user
@@ -152,9 +147,7 @@ export default function PaymentSubmissionForm({ onSubmit }: PaymentSubmissionFor
             setFileData(dataUrl)
             const ocr = await processPaymentProof(dataUrl)
             setOcrResult(ocr)
-            if (ocr.amount && !formData.amount) {
-              setFormData((prev) => ({ ...prev, amount: ocr.amount!.toString() }))
-            }
+            setSuggestedAmount(extractAmountFromText(ocr.text))
             if (ocr.isPayment) setConfirmNotPayment(false)
           }
         } catch (error) {
@@ -235,6 +228,18 @@ export default function PaymentSubmissionForm({ onSubmit }: PaymentSubmissionFor
         {ocrResult?.amount && (
           <p className="text-xs text-muted mt-1">OCR detected: ₹{ocrResult.amount.toLocaleString("en-IN")}</p>
         )}
+        {suggestedAmount ? (
+          <div className="mt-1 text-xs">
+            <span className="text-muted">Suggested: ₹{suggestedAmount.toLocaleString("en-IN")}</span>
+            <button
+              type="button"
+              onClick={() => setFormData((prev) => ({ ...prev, amount: suggestedAmount!.toString() }))}
+              className="ml-3 px-2 py-1 text-xs rounded bg-muted-background border"
+            >
+              Use suggested amount
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div>
